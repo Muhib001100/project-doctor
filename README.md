@@ -26,12 +26,14 @@ $ project-doctor .
 
 ## Setup
 
-If you just unzipped this, run the one-time setup first so the repository links
-and the licence carry your details:
+If you just unzipped this, run the one-time setup. It writes your details into
+the project, verifies the test suite, and publishes the repository:
 
 ```bash
-python configure.py
+python publish.py
 ```
+
+See [PUBLISHING.md](PUBLISHING.md) for what it does and how to finish by hand.
 
 ## Install
 

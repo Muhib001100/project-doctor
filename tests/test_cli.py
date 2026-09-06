@@ -94,3 +94,39 @@ def test_min_severity_does_not_inflate_score(tmp_path, capsys):
     filtered = json.loads(capsys.readouterr().out)
     assert filtered["score"] == full
     assert all(f["severity"] == "critical" for f in filtered["findings"])
+
+
+def test_no_check_raises_on_a_realistic_project(tmp_path):
+    """A check that crashes is swallowed into report.errors; keep that at zero."""
+    from project_doctor.model import Project
+    from project_doctor.scanner import run
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("import os\n\n\ndef main():\n    return os.getcwd()\n")
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_app.py").write_text("def test_main():\n    assert True\n")
+    (tmp_path / "README.md").write_text("# App\n\n## Install\n\n```\npip install app\n```\n")
+    (tmp_path / "LICENSE").write_text("MIT\n")
+    (tmp_path / "pyproject.toml").write_text(
+        '[build-system]\nrequires = ["hatchling"]\n\n[project]\nname = "app"\n'
+        'version = "0.1.0"\nrequires-python = ">=3.9"\n'
+    )
+    report = run(Project(tmp_path), offline=True)
+    assert report.errors == []
+
+
+def test_scanner_reports_a_broken_check_instead_of_crashing():
+    from project_doctor import checks as checks_module
+    from project_doctor.model import Project
+    from project_doctor.scanner import run
+
+    def boom(project, ctx):
+        raise ValueError("bad check")
+
+    original = checks_module.all_checks
+    checks_module.all_checks = lambda: [checks_module.Check("boom", "Boom", "", boom)]
+    try:
+        report = run(Project("."), offline=True)
+    finally:
+        checks_module.all_checks = original
+    assert any("boom" in e for e in report.errors)

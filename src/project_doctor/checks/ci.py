@@ -24,7 +24,11 @@ def workflows(project: Project):
     out = []
     for p in project.files():
         rel = project.rel(p)
-        if rel.startswith(".github/workflows/") and p.suffix in (".yml", ".yaml"):
+        # GitHub only reads the top level of .github/workflows; anything in a
+        # subdirectory is data, not a workflow.
+        if (rel.startswith(".github/workflows/")
+                and rel.count("/") == 2
+                and p.suffix in (".yml", ".yaml")):
             out.append((rel, project.read(p) or ""))
     return out
 

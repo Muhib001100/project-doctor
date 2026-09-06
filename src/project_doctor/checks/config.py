@@ -6,6 +6,7 @@ from collections.abc import Iterable
 
 from ..model import Finding, Project
 from . import register
+from .dependencies import in_auxiliary_tree
 
 SECRET_PATTERNS = [
     (r"AKIA[0-9A-Z]{16}", "AWS access key id", "critical"),
@@ -73,7 +74,7 @@ def _scan_secrets(project: Project) -> Iterable[Finding]:
             line = text.count("\n", 0, m.start()) + 1
             if line <= len(lines) and IGNORE_PRAGMA.search(lines[line - 1]):
                 continue
-            is_example = re.search(
+            is_example = in_auxiliary_tree(rel) or re.search(
                 r"(?i)(\.example$|\.sample$|\.template$|\.md$|\.rst$|\.txt$"
                 r"|(^|/)(fixtures?|tests?|docs?|examples?|samples?)/)", rel
             )

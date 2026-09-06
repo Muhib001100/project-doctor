@@ -24,6 +24,15 @@ $ project-doctor .
       fix: Create README.md with: one-line description, install, usage, licence.
 ```
 
+## Setup
+
+If you just unzipped this, run the one-time setup first so the repository links
+and the licence carry your details:
+
+```bash
+python configure.py
+```
+
 ## Install
 
 From PyPI:
@@ -41,7 +50,7 @@ pipx run project-doctor .
 From source:
 
 ```bash
-git clone https://github.com/OWNER/project-doctor.git
+git clone https://github.com/Not-Muhib/project-doctor.git
 cd project-doctor
 pip install -e ".[dev]"
 ```
@@ -99,6 +108,15 @@ dampeners so one noisy check cannot dominate:
 - a single check can remove at most 8 points;
 - a whole category (`deps`, `tests`, `quality`, ...) can remove at most 15.
 
+Findings split into two counting modes so that size is not itself a penalty:
+
+- **Absolute** — the presence or absence of something the project should have,
+  or a fact that is equally bad at any size: no LICENSE, no CI, a leaked key,
+  a file that does not parse. Counted as-is.
+- **Density** — things that accumulate with codebase size: long functions,
+  complex functions, undeclared imports. Counted per thousand lines of Python,
+  so a 500k-line project is not marked down for being large.
+
 Critical findings bypass the category cap, because a leaked key or a file that
 does not parse should always move the number.
 
@@ -108,19 +126,21 @@ Grades: A ≥ 90, B ≥ 80, C ≥ 70, D ≥ 60, otherwise F.
 
 Real numbers from `--offline` scans of well-known repositories:
 
-| Repository | Score | Critical | High | Medium | Low |
-| --- | --- | --- | --- | --- | --- |
-| project-doctor (this repo) | 87 | 0 | 0 | 10 | 9 |
-| pallets/flask | 62 | 0 | 2 | 44 | 26 |
-| psf/requests | 53 | 0 | 1 | 39 | 30 |
-| tiangolo/fastapi | 33 | 1 | 8 | 58 | 154 |
-| django/django | 0 | 2 | 29 | 994 | 691 |
+| Repository | Python lines | Score | Critical | High | Medium | Low |
+| --- | --- | --- | --- | --- | --- | --- |
+| project-doctor (this repo) | 2,676 | 89 B | 0 | 0 | 10 | 9 |
+| pallets/flask | 18,345 | 81 B | 0 | 2 | 38 | 26 |
+| psf/requests | 12,032 | 77 C | 0 | 1 | 39 | 30 |
+| tiangolo/fastapi | 112,998 | 71 C | 1 | 1 | 58 | 154 |
+| django/django | 525,966 | 51 F | 1 | 16 | 994 | 691 |
 
-Read that table as a warning about the score, not about Django. Large mature
-codebases accumulate enough low-severity findings to saturate every cap, so the
-number is most meaningful on small and mid-sized projects. On anything big,
-ignore the grade and read the `critical` and `high` sections — those are the
-ones tuned to be worth acting on.
+Django's grade is driven by real findings, not volume: a workflow that combines
+`pull_request_target` with a checkout, several `exec()` call sites, and untrusted
+event data interpolated into shell steps. Whether those are acceptable in a
+project of that size and maturity is a judgement the tool does not make for you.
+
+Read the `critical` and `high` sections first. Those are the tiers tuned to be
+worth acting on; medium and low are maintenance backlog, not alarms.
 
 ## Using it in CI
 
@@ -168,6 +188,10 @@ pytest
 ruff check .
 project-doctor . --offline     # the tool scanning itself
 ```
+
+## Publishing
+
+If you cloned this before it was on GitHub, see [PUBLISHING.md](PUBLISHING.md).
 
 ## Contributing
 

@@ -9,7 +9,7 @@ description = "Scan a project or GitHub repo and report what is broken, missing 
 readme = "README.md"
 requires-python = ">=3.9"
 license = { file = "LICENSE" }
-authors = [{ name = "Ansar" }]
+authors = [{ name = "Muhammad Ansar", email = "" }]
 keywords = ["linter", "audit", "cli", "github", "code-quality", "static-analysis"]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -30,8 +30,8 @@ dependencies = []
 dev = ["pytest>=7.4,<9", "ruff>=0.5,<1"]
 
 [project.urls]
-Homepage = "https://github.com/OWNER/project-doctor"
-Issues = "https://github.com/OWNER/project-doctor/issues"
+Homepage = "https://github.com/Not-Muhib/project-doctor"
+Issues = "https://github.com/Not-Muhib/project-doctor/issues"
 
 [project.scripts]
 project-doctor = "project_doctor.cli:main"

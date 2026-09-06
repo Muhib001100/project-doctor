@@ -75,7 +75,10 @@ def check_quality(project: Project, ctx: dict) -> Iterable[Finding]:
             tree = ast.parse(src)
         except SyntaxError as exc:
             findings.append(Finding(
-                "quality.syntax-error", "critical", f"SyntaxError in {rel}",
+                # Test suites sometimes ship a deliberately broken file as a
+                # fixture, so a parse failure there is not project-critical.
+                "quality.syntax-error", "high" if is_test else "critical",
+                f"SyntaxError in {rel}",
                 f"Line {exc.lineno}: {exc.msg}. This file cannot be imported at all.",
                 path=rel, line=exc.lineno or 0, fix="Fix the syntax error.",
             ))
@@ -111,7 +114,8 @@ def check_quality(project: Project, ctx: dict) -> Iterable[Finding]:
             # eval / exec
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("eval", "exec"):
                 findings.append(Finding(
-                    "quality.eval", "high", f"Use of `{node.func.id}()`",
+                    "quality.eval", "medium" if is_test else "high",
+                    f"Use of `{node.func.id}()`",
                     "Executes arbitrary code; if any part of the input is user-controlled "
                     "this is remote code execution.",
                     path=rel, line=node.lineno,
@@ -122,7 +126,8 @@ def check_quality(project: Project, ctx: dict) -> Iterable[Finding]:
                 for kw in node.keywords:
                     if kw.arg == "shell" and isinstance(kw.value, ast.Constant) and kw.value.value is True:
                         findings.append(Finding(
-                            "quality.shell-true", "high", "subprocess called with shell=True",
+                            "quality.shell-true", "medium" if is_test else "high",
+                            "subprocess called with shell=True",
                             "Any interpolated value becomes shell syntax — classic command injection.",
                             path=rel, line=node.lineno,
                             fix="Pass a list of arguments and drop shell=True.",

@@ -255,3 +255,35 @@ def test_missing_test_step_flagged(tmp_path):
     wf = "on: [push, pull_request]\npermissions:\n  contents: read\njobs:\n  t:\n    steps:\n      - uses: actions/checkout@v4\n      - run: echo hi\n"
     project = make(tmp_path, {".github/workflows/ci.yml": wf})
     assert "ci.no-test-step" in ids(check_ci(project, {}))
+
+
+def test_lazy_import_inside_function_is_optional(tmp_path):
+    project = make(tmp_path, {
+        "requirements.txt": "flask==3.0.0\n",
+        "app.py": "def render():\n    import PIL\n    return PIL\n",
+    })
+    assert "deps.undeclared" not in ids(check_dependencies(project, {}))
+
+
+def test_module_level_import_is_still_required(tmp_path):
+    project = make(tmp_path, {
+        "requirements.txt": "flask==3.0.0\n",
+        "app.py": "import PIL\n",
+    })
+    assert "deps.undeclared" in ids(check_dependencies(project, {}))
+
+
+def test_workflow_subdirectory_is_not_a_workflow(tmp_path):
+    project = make(tmp_path, {
+        ".github/workflows/ci.yml":
+            "on: [push, pull_request]\npermissions:\n  contents: read\njobs:\n"
+            "  t:\n    steps:\n      - uses: actions/checkout@v4\n      - run: pytest\n",
+        ".github/workflows/data/matrix.yml": "name: not-a-workflow\nvalues: [1, 2]\n",
+    })
+    assert "ci.no-trigger" not in ids(check_ci(project, {}))
+
+
+def test_eval_in_tests_is_downgraded(tmp_path):
+    project = make(tmp_path, {"tests/test_a.py": "def test_x():\n    assert eval('1')\n"})
+    found = [f for f in check_quality(project, {}) if f.check == "quality.eval"]
+    assert found and found[0].severity == "medium"

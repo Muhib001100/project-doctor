@@ -21,6 +21,30 @@ REPEAT_DECAY = 0.55
 MAX_DEDUCTION_PER_CHECK = 8.0
 MAX_DEDUCTION_PER_CATEGORY = 15.0
 
+# Two kinds of finding score differently.
+#
+#   Absolute  - presence or absence of something the project should have, or a
+#               fact that is equally bad at any size: no LICENSE, no CI, a
+#               leaked key, a file that does not parse. Counted as-is.
+#   Density   - things that naturally accumulate with codebase size: long
+#               functions, complex functions, TODO-grade nits. Counted per
+#               thousand lines, so a 300k-line project is not punished for
+#               being large.
+DENSITY_PREFIXES = ("quality.",)
+DENSITY_CHECKS = {
+    "tests.no-assert", "tests.skipped",
+    "deps.undeclared", "deps.unpinned", "deps.no-upper-bound", "deps.js-wildcard",
+    "docs.broken-link", "docs.placeholder",
+    "ci.unpinned-action", "ci.outdated-action",
+    "config.junk", "config.large-file",
+    "outdated.package",
+}
+
+
+def is_density_check(check: str) -> bool:
+    """True if this check's finding count scales with codebase size."""
+    return check in DENSITY_CHECKS or check.startswith(DENSITY_PREFIXES)
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -171,34 +195,42 @@ class Report:
         return out
 
     def score(self) -> int:
-        """100 minus weighted deductions, with diminishing returns per check."""
+        """100 minus weighted deductions. See DENSITY_CHECKS for the two modes."""
         if self.score_override is not None:
             return self.score_override
-        seen: dict[str, int] = {}
-        per_check: dict[str, float] = {}
+
+        kloc = max(1.0, float(self.stats.get("python lines") or 0) / 1000.0)
+
+        tally: dict[tuple[str, str], int] = {}
         for f in self.findings:
-            w = WEIGHTS.get(f.severity, 0.0)
-            if not w:
+            key = (f.check, f.severity)
+            tally[key] = tally.get(key, 0) + 1
+
+        per_check: dict[str, float] = {}
+        for (check, severity), count in tally.items():
+            weight = WEIGHTS.get(severity, 0.0)
+            if not weight:
                 continue
-            n = seen.get(f.check, 0)
-            seen[f.check] = n + 1
-            deduction = w * (REPEAT_DECAY ** min(n, 10))
-            # The cap never shrinks a single finding below its own weight.
-            cap = max(MAX_DEDUCTION_PER_CHECK, w)
-            per_check[f.check] = min(cap, per_check.get(f.check, 0.0) + deduction)
+            effective = count / kloc if is_density_check(check) else float(count)
+            # Geometric sum of weight * decay^i, extended to fractional counts:
+            # one finding costs the full weight, each further one costs less,
+            # and the total converges to weight / (1 - decay).
+            deduction = weight * (1 - REPEAT_DECAY ** effective) / (1 - REPEAT_DECAY)
+            cap = max(MAX_DEDUCTION_PER_CHECK, weight)
+            per_check[check] = min(cap, per_check.get(check, 0.0) + deduction)
+
         # Critical findings bypass the category cap: a leaked key or a syntax
         # error must always move the number.
         critical_checks = {f.check for f in self.findings if f.severity == "critical"}
         critical_total = sum(per_check.pop(c, 0.0) for c in critical_checks)
 
         per_category: dict[str, float] = {}
-        for check_id, points in per_check.items():
-            category = check_id.split(".")[0]
+        for check, points in per_check.items():
+            category = check.split(".")[0]
             per_category[category] = min(
                 MAX_DEDUCTION_PER_CATEGORY, per_category.get(category, 0.0) + points
             )
-        total = critical_total + sum(per_category.values())
-        return max(0, min(100, round(100 - total)))
+        return max(0, min(100, round(100 - critical_total - sum(per_category.values()))))
 
     def grade(self) -> str:
         s = self.score()

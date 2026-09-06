@@ -4,7 +4,8 @@ from __future__ import annotations
 import time
 from collections.abc import Iterable
 
-from .checks import Check, all_checks
+from . import checks as checks_module
+from .checks import Check
 from .model import Project, Report
 
 
@@ -13,7 +14,7 @@ def run(project: Project, only: Iterable[str] = (), skip: Iterable[str] = (),
     only = {c.strip() for c in only if c.strip()}
     skip = {c.strip() for c in skip if c.strip()}
     checks: list[Check] = [
-        c for c in all_checks()
+        c for c in checks_module.all_checks()
         if (not only or c.id in only) and c.id not in skip
         and not (offline and c.network)
     ]

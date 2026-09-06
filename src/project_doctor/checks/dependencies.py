@@ -102,8 +102,17 @@ def parse_requirements(text: str) -> list[tuple[int, str, str]]:
 
 # Imports in these trees belong to docs builds, sample apps and benchmarks, and
 # are declared (if at all) in their own requirement files.
-AUXILIARY_DIRS = ("docs/", "doc/", "examples/", "example/", "samples/", "sample/",
-                  "benchmarks/", "benchmark/", "scripts/", "tools/", "bin/")
+# Trees that hold documentation builds, tutorial snippets, sample apps and
+# benchmarks. Their imports and their fake credentials are not production code.
+AUXILIARY_DIR = re.compile(
+    r"(?i)^(docs?|docs?[-_]src|src[-_]docs?|examples?|samples?|tutorials?|demos?"
+    r"|benchmarks?|scripts|tools|bin|website|site)/"
+)
+
+
+def in_auxiliary_tree(rel_path: str) -> bool:
+    """True for documentation, example, benchmark and tooling directories."""
+    return bool(AUXILIARY_DIR.match(rel_path))
 
 # Build-time and always-available tooling, never a runtime dependency to declare.
 EXEMPT_IMPORTS = {"setuptools", "pkg_resources", "distutils", "wheel", "hatchling",
@@ -111,9 +120,16 @@ EXEMPT_IMPORTS = {"setuptools", "pkg_resources", "distutils", "wheel", "hatchlin
 
 
 def _is_optional_import(node: ast.AST, parents: dict[int, ast.AST]) -> bool:
-    """True if the import sits under `if TYPE_CHECKING:` or a try/except ImportError."""
+    """True if the import is guarded, type-only, or lazily done inside a function.
+
+    A module-level import is a hard requirement. An import nested in a function
+    body, wrapped in try/except, or placed under `if TYPE_CHECKING:` is how
+    projects declare optional backends and extras, so it is not reported.
+    """
     cur = parents.get(id(node))
     while cur is not None:
+        if isinstance(cur, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return True  # lazy import, typically an optional backend
         if isinstance(cur, ast.Try) and cur.handlers:
             return True  # a guarded import is optional by construction
         if isinstance(cur, ast.If):
@@ -130,7 +146,7 @@ def top_level_imports(project: Project) -> dict[str, tuple[str, int]]:
     local = local_module_names(project)
     for path in project.python_files():
         rel = project.rel(path)
-        if rel.startswith(AUXILIARY_DIRS) or "/site-packages/" in rel:
+        if in_auxiliary_tree(rel) or "/site-packages/" in rel:
             continue
         if path.name in ("setup.py", "conftest.py", "noxfile.py", "tasks.py"):
             continue

@@ -3,7 +3,7 @@
 ## Setup
 
 ```bash
-git clone https://github.com/OWNER/project-doctor.git
+git clone https://github.com/Not-Muhib/project-doctor.git
 cd project-doctor
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"

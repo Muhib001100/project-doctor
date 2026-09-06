@@ -6,6 +6,19 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Changed
+- Health score now counts volume-driven findings per thousand lines of Python,
+  so large codebases are not penalised for size alone.
+
+### Fixed
+- Lazy imports inside functions, guarded imports and `TYPE_CHECKING` imports are
+  no longer reported as undeclared dependencies.
+- Documentation, tutorial, example and benchmark trees are excluded from the
+  dependency and secret scans.
+- Files under `.github/workflows/` subdirectories are no longer treated as
+  workflows.
+- `--min-severity` no longer inflates the health score.
+
 ## [0.1.0] - 2026-09-05
 
 ### Added
